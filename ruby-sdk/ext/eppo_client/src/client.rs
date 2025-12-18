@@ -139,8 +139,8 @@ impl Client {
         subject_attributes: Value,
         expected_type: Value,
     ) -> Result<Value> {
-        let expected_type: VariationType = serde_magnus::deserialize(expected_type)?;
-        let subject_attributes: Attributes = serde_magnus::deserialize(subject_attributes)?;
+        let expected_type: VariationType = serde_magnus::deserialize(&ruby, expected_type)?;
+        let subject_attributes: Attributes = serde_magnus::deserialize(&ruby, subject_attributes)?;
 
         let result = rb_self
             .evaluator
@@ -151,13 +151,14 @@ impl Client {
                 Some(expected_type),
             )
             // TODO: maybe expose possible errors individually.
-            .map_err(|err| Error::new(exception::runtime_error(), err.to_string()))?;
+            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
 
         Ok(result.into_value_with(&ruby))
     }
 
     pub fn get_assignment_details(
-        &self,
+        ruby: &Ruby,
+        rb_self: &Self,
         flag_key: String,
         subject_key: String,
         subject_attributes: Value,
@@ -165,10 +166,10 @@ impl Client {
     ) -> Result<Value> {
         let ruby = Ruby::get_with(subject_attributes);
 
-        let expected_type: VariationType = serde_magnus::deserialize(expected_type)?;
-        let subject_attributes: Attributes = serde_magnus::deserialize(subject_attributes)?;
+        let expected_type: VariationType = serde_magnus::deserialize(&ruby, expected_type)?;
+        let subject_attributes: Attributes = serde_magnus::deserialize(&ruby, subject_attributes)?;
 
-        let result = self.evaluator.get_assignment_details(
+        let result = rb_self.evaluator.get_assignment_details(
             &flag_key,
             &subject_key.into(),
             &Arc::new(subject_attributes),
@@ -179,7 +180,8 @@ impl Client {
     }
 
     pub fn get_bandit_action(
-        &self,
+        ruby: &Ruby,
+        rb_self: &Self,
         flag_key: String,
         subject_key: String,
         subject_attributes: Value,
@@ -187,17 +189,18 @@ impl Client {
         default_variation: String,
     ) -> Result<Value> {
         let subject_attributes = serde_magnus::deserialize::<_, ContextAttributes>(
+            &ruby,
             subject_attributes,
         )
         .map_err(|err| {
             Error::new(
-                exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 format!("Unexpected value for subject_attributes: {err}"),
             )
         })?;
-        let actions = serde_magnus::deserialize(actions)?;
+        let actions = serde_magnus::deserialize(&ruby, actions)?;
 
-        let result = self.evaluator.get_bandit_action(
+        let result = rb_self.evaluator.get_bandit_action(
             &flag_key,
             &subject_key.into(),
             &subject_attributes,
@@ -205,11 +208,12 @@ impl Client {
             &default_variation.into(),
         );
 
-        serde_magnus::serialize(&result)
+        serde_magnus::serialize(&ruby, &result)
     }
 
     pub fn get_bandit_action_details(
-        &self,
+        ruby: &Ruby,
+        rb_self: &Self,
         flag_key: String,
         subject_key: String,
         subject_attributes: Value,
@@ -217,17 +221,18 @@ impl Client {
         default_variation: String,
     ) -> Result<Value> {
         let subject_attributes = serde_magnus::deserialize::<_, ContextAttributes>(
+            &ruby,
             subject_attributes,
         )
         .map_err(|err| {
             Error::new(
-                exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 format!("Unexpected value for subject_attributes: {err}"),
             )
         })?;
-        let actions = serde_magnus::deserialize(actions)?;
+        let actions = serde_magnus::deserialize(&ruby, actions)?;
 
-        let result = self.evaluator.get_bandit_action_details(
+        let result = rb_self.evaluator.get_bandit_action_details(
             &flag_key,
             &subject_key.into(),
             &subject_attributes,
@@ -235,7 +240,7 @@ impl Client {
             &default_variation.into(),
         );
 
-        serde_magnus::serialize(&result)
+        serde_magnus::serialize(&ruby, &result)
     }
 
     pub fn wait_for_initialization(&self, timeout_secs: f64) {
@@ -282,15 +287,15 @@ impl Client {
         }
     }
 
-    pub fn track(&self, event_type: String, payload: Value) -> Result<()> {
-        let Some(event_ingestion) = &self.event_ingestion else {
+    pub fn track(ruby: &Ruby, rb_self: &Self, event_type: String, payload: Value) -> Result<()> {
+        let Some(event_ingestion) = &rb_self.event_ingestion else {
             // Event ingestion is disabled, do nothing.
             return Ok(());
         };
 
-        let payload: serde_json::Value = serde_magnus::deserialize(payload).map_err(|err| {
+        let payload: serde_json::Value = serde_magnus::deserialize(ruby, payload).map_err(|err| {
             Error::new(
-                exception::runtime_error(),
+                ruby.exception_runtime_error(),
                 format!("Unexpected value for payload: {err}"),
             )
         })?;
